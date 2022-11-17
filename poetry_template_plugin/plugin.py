@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Match
 
 from cleo.application import Application
 from cleo.commands.command import Command
-from cleo.helpers import argument
+from cleo.helpers import argument, option
 from poetry.plugins.application_plugin import ApplicationPlugin
 
 
@@ -80,19 +80,17 @@ class TemplateCommand(Command):
             if (self.target_dir / t).exists():
                 target_hash = hashlib.md5((self.target_dir / t).read_bytes()).hexdigest()
                 if self.lock["files"].get(str(t)) != target_hash:
-                    self.io.write_line(f". skip <c1>{t}</c1> was changed")
+                    self.io.write_line(f". <c2>skip</c2> <c1>{t}</c1>")
                     continue
             if self.lock["files"].get(str(t)) != source_hash:
-                self.io.write_line(f". write <c1>{t}</c1>")
+                self.io.write_line(f". <c2>write</c2> <c1>{t}</c1>")
                 if not (self.target_dir / t).parent.exists():
                     os.makedirs((self.target_dir / t).parent)
                 (self.target_dir / t).write_bytes(data)
-            else:
-                self.io.write_line(f". skip <c1>{t}</c1> no changes")
         os.chdir(self.target_dir)
         self.lock["files"] = new_files
         Path("pytemplate.lock").write_bytes(json.dumps(self.lock, indent=2).encode("utf-8"))
-        self.call("update")
+        self.done()
         self.line("\n✨ Done!")
 
     def apply_context(self, content: str, context: Dict[str, Any]) -> str:
@@ -105,6 +103,9 @@ class TemplateCommand(Command):
             )
 
         return re.sub(r"{%\s*([a-zA-Z_0-9]+)\s*%}", repl, content)
+
+    def done(self) -> None:
+        self.call("update")
 
 
 class TemplateInitCommand(TemplateCommand):
@@ -136,12 +137,19 @@ class TemplateUpdateCommand(TemplateCommand):
     name = "template update"
     description = "Update project from template."
     arguments = []
+    options = [
+        option("update", description="Run poetry update."),
+    ]
 
     def init(self):
         self.target_dir = Path(os.getcwd())
         if not Path("pytemplate.lock").exists():
             raise RuntimeError("Missing pytemplate.lock file.")
         self.lock = json.loads(Path("pytemplate.lock").read_text(encoding="utf-8"))
+
+    def done(self):
+        if self.option("update"):
+            self.call("update")
 
 
 class TemplatePlugin(ApplicationPlugin):
