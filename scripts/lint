@@ -2,4 +2,5 @@
 
 set -x
 
+mypy poetry_template_plugin
 flake8 poetry_template_plugin
